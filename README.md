@@ -1,4 +1,6 @@
 # portfolio-optimizer-pro
+![Image 18-10-2025 at 15 42](https://github.com/user-attachments/assets/62167990-917a-47fe-9e5a-796840acdbf4)
+![Image 18-10-2025 at 20 46](https://github.com/user-attachments/assets/cae8e93e-aee6-4375-9afa-8d0274e62ef3)
 
 5–8 stock portfolio optimizer targeting ≥3% alpha vs S&P 500 over 1–2 years with factor constraints, regime overlay, liquidity guards, realistic costs, and backtesting. Production-grade repository with a Streamlit research app, Excel UI, robust Python library, tests, CI/CD, docs, and a marketing site.
 
