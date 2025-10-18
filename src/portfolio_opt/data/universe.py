@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Iterable, Optional
 import io
 import logging
+from importlib import resources
+from pathlib import Path
+from typing import Iterable, Optional
 
 import certifi
 import pandas as pd
@@ -13,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 # Persistent CSV storing the latest S&P 500 universe.
 _UNIVERSE_CSV = Path(__file__).resolve().parents[3] / "data" / "universe" / "sp500.csv"
+# Packaged copy bundled alongside the module for sandboxed deployments.
+_PACKAGED_CSV = Path(__file__).resolve().with_name("sp500.csv")
 
 # Lightweight fallback when both local disk and Wikipedia fail (10 tickers).
 _DEMO_SP500 = [
@@ -128,15 +131,9 @@ def _fetch_sp500_from_wikipedia() -> list[str]:
     return _sanitize_universe(syms)
 
 
-def _read_local_sp500() -> list[str]:
-    """
-    Attempt to read the S&P 500 universe from the persisted CSV.
-    """
-    if not _UNIVERSE_CSV.exists():
-        raise FileNotFoundError(_UNIVERSE_CSV)
-
+def _load_symbols_from_csv(path: Path) -> list[str]:
     try:
-        df = pd.read_csv(_UNIVERSE_CSV)
+        df = pd.read_csv(path)
         if df.empty:
             return []
         if "Symbol" in df.columns:
@@ -144,9 +141,48 @@ def _read_local_sp500() -> list[str]:
         else:
             raw = df.iloc[:, 0].astype(str).tolist()
     except Exception as exc:  # noqa: BLE001
-        raise RuntimeError(f"Failed to read {_UNIVERSE_CSV}: {exc}") from exc
+        raise RuntimeError(f"Failed to read {path}: {exc}") from exc
 
     return _sanitize_universe(raw)
+
+
+def _read_local_sp500() -> list[str]:
+    """
+    Attempt to read the S&P 500 universe from the persisted CSV on disk.
+    """
+    if not _UNIVERSE_CSV.exists():
+        raise FileNotFoundError(_UNIVERSE_CSV)
+
+    return _load_symbols_from_csv(_UNIVERSE_CSV)
+
+
+def _read_packaged_sp500() -> list[str]:
+    """
+    Read the bundled CSV shipped with the library (works even when installed in site-packages).
+    """
+    # Direct file access first (editable installs).
+    if _PACKAGED_CSV.exists():
+        return _load_symbols_from_csv(_PACKAGED_CSV)
+
+    # Fall back to importlib.resources for standard installs.
+    try:
+        csv_resource = resources.files("portfolio_opt.data").joinpath("sp500.csv")
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Unable to locate packaged S&P 500 resource: %s", exc)
+        return []
+
+    try:
+        with csv_resource.open("r", encoding="utf-8") as fh:
+            df = pd.read_csv(fh)
+        if df.empty:
+            return []
+        col = "Symbol" if "Symbol" in df.columns else df.columns[0]
+        return _sanitize_universe(df[col].astype(str).tolist())
+    except FileNotFoundError:
+        return []
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to read packaged S&P 500 CSV: %s", exc)
+        return []
 
 
 def _write_local_sp500(symbols: list[str]) -> None:
@@ -181,7 +217,18 @@ def sp500_tickers() -> list[str]:
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to read S&P 500 CSV %s: %s. Attempting Wikipedia fetch.", _UNIVERSE_CSV, exc)
 
-    # 2) Fetch from Wikipedia and persist for next time
+    # 2) Bundled CSV inside the package (works in sandboxed deployments)
+    packaged_syms = _read_packaged_sp500()
+    if packaged_syms:
+        logger.info(
+            "Loaded %d S&P 500 tickers from packaged CSV. Writing to %s for future runs.",
+            len(packaged_syms),
+            _UNIVERSE_CSV,
+        )
+        _write_local_sp500(packaged_syms)
+        return packaged_syms
+
+    # 3) Fetch from Wikipedia and persist for next time
     try:
         wiki_syms = _fetch_sp500_from_wikipedia()
         if wiki_syms:
@@ -195,7 +242,7 @@ def sp500_tickers() -> list[str]:
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to fetch S&P 500 from Wikipedia: %s", exc)
 
-    # 3) Demo fallback
+    # 4) Demo fallback
     logger.warning(
         "Falling back to demo S&P 500 subset (%d tickers). "
         "Check connectivity or ensure %s exists.",
