@@ -12,3 +12,7 @@ data/*.csv
 .DS_Store
 .vscode/
 .idea/
+
+# app caches
+data/prices/*.csv
+data/prices/*.json
