@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import sys
 import json
 from datetime import datetime
 from pathlib import Path
@@ -7,8 +9,21 @@ from typing import Any
 
 import pandas as pd
 
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
 from ..config import load_settings
-from ..utils import hash_key
+
+try:
+    from ..utils import hash_key
+except ImportError:
+    import hashlib
+
+    def hash_key(*parts: Any, prefix: str = "") -> str:  # type: ignore[redefinition]
+        payload = json.dumps(parts if len(parts) != 1 else parts[0], default=str, sort_keys=True)
+        digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+        return f"{prefix}:" + digest if prefix else digest
 
 
 class DiskCache:

@@ -38,6 +38,15 @@ All factors are standardized to z-scores and then combined into a composite.
 - Attribution: basic allocation/selection effects vs SPY
 - MC Stress: block bootstrap of returns to estimate tail risk (drawdown, VaR/ES distribution)
 
+## Forecasting & Projections
+
+- Per-ticker return forecasts: AutoARIMA/SARIMAX (statsmodels/pmdarima), Exponential Smoothing (ETS), and simple ML baselines (Lasso/Ridge) on engineered features.
+- Rolling-origin cross-validation selects hyperparameters; outputs include mean, std, and quantile estimates (p05/p50/p95).
+- Covariance forecasts: EWMA projection over horizon (default) with optional DCC-GARCH (arch) for higher fidelity.
+- Forward simulation: Multivariate Gaussian or Student-t draws generate portfolio return paths over horizon; outputs include terminal return quantiles, VaR/CVaR (95/99), and confidence bands for cumulative return.
+- Benchmark forecast: Same machinery applied to SPY/^GSPC to estimate expected alpha with confidence bounds.
+- Integration: Forecasted μ/Σ can be plugged into optimization; when disabled, the system falls back to historical estimates.
+
 ## References
 
 - EWMA (RiskMetrics): σ²_t = λσ²_{t-1} + (1-λ)r²_t

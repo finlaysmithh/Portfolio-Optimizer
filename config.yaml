@@ -1,0 +1,13 @@
+forecasting:
+  model: "auto_arima"
+  horizon_days: 21
+  exogenous: false
+  use_dcc: false
+  distribution: "gaussian"
+  student_t_df: 7
+  sim_paths: 10000
+  benchmark: "^GSPC"
+optimization:
+  expected_returns_source: "forecasted_mu"
+  risk_model: "forecasted_sigma"
+

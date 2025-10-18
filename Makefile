@@ -20,7 +20,7 @@ test:
 	$(VENV)/bin/pytest
 
 app:
-	$(VENV)/bin/streamlit run streamlit_app/app.py
+	$(VENV)/bin/streamlit run "streamlit_app/0_📈_Portfolio_Optimizer.py"
 
 excel:
 	$(VENV)/bin/xlwings addin install || true

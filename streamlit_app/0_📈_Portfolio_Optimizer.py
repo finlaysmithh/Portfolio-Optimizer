@@ -13,7 +13,7 @@ if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
 import streamlit as st
-st.set_page_config(page_title="Portfolio Optimizer", layout="wide")
+st.set_page_config(page_title="Portfolio Optimizer App 📈", layout="wide")
 
 import pandas as pd
 import numpy as np
@@ -58,7 +58,25 @@ st.markdown(
         box-shadow: 0 1px 4px rgba(0,0,0,0.08);
     }
     .guide-link:hover { background: #e5e7eb; }
+    .coded-by {
+        position: fixed;
+        top: 8px;
+        left: 16px;
+        z-index: 10000;
+        font-size: 0.75rem;
+        color: #394b59;
+        opacity: 0.85;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+    }
     </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    """
+    <div class="coded-by">coded by Finlay Smith</div>
     """,
     unsafe_allow_html=True,
 )
@@ -89,13 +107,21 @@ except Exception:
 
 # ---------- Sidebar controls ----------
 with st.sidebar:
-    # Guide button at the very top (left sidebar)
-    if st.button("Guide 🛈", use_container_width=True, key="guide_sidebar"):
-        try:
-            st.query_params["guide"] = "1"
-        except Exception:
-            st.experimental_set_query_params(guide=1)
-        st.rerun()
+    guide_box = st.expander("ℹ️ Guide to Portfolio Optimizer", expanded=False)
+    with guide_box:
+        st.markdown(
+            "\n".join(
+                [
+                    "- Universe: choose demo list, S&P 500 (via Wikipedia), or your custom tickers.",
+                    "- Metrics: compute return, volatility, Sharpe, beta, VaR, drawdown, and more per ticker.",
+                    "- Filters: screen on liquidity, Sharpe, momentum, beta range, and optional momentum exclusions.",
+                    "- Ranking: order by composite score, Sharpe, or momentum before selecting target names.",
+                    "- Optimization: run equal-weight or max-Sharpe (PyPortfolioOpt) while respecting constraints.",
+                    "- Backtest: set horizon, rebalancing, and trading costs to evaluate performance.",
+                    "- Outputs: review charts/tables and download CSVs or tear sheets for follow-up.",
+                ]
+            )
+        )
 
     st.markdown("---")
     st.header("Universe & Filters")
@@ -139,114 +165,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
-# Guide functions (defined before use)
-def _close_guide():
-    # Clear the ?guide=1 query param to return to optimizer
-    try:
-        st.query_params.clear()
-    except Exception:
-        st.experimental_set_query_params()
-
-def _render_guide():
-    st.markdown(
-        """
-        <div class="opt-card">
-        <div class="opt-header">How This Optimizer Works</div>
-        <ul>
-          <li><b>Universe</b>: S&P 500 (from Wikipedia) or your custom list. Prices are fetched from Yahoo Finance (yfinance).</li>
-          <li><b>Metrics</b>: For every ticker we compute annualized return, volatility, Sharpe (daily or monthly), momentum (L‑month price change), beta and R² vs S&P 500, 1‑yr VaR (95%), and max drawdown.</li>
-          <li><b>Filters</b>: Keep names that meet your Min Sharpe, Min Momentum, and Beta range.</li>
-          <li><b>Ranking</b>: Sort by Sharpe, Momentum, or Composite (normalized average of both), then take the top <i>Target # names</i>.</li>
-          <li><b>Weights</b>: Equal‑weight or Max‑Sharpe weights (via PyPortfolioOpt if installed).</li>
-          <li><b>Curve</b>: Static weights, or monthly rebalancing with trading costs (bps) applied.</li>
-        </ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        """
-        <div class="opt-card">
-        <div class="opt-header">Controls & How To Use Them</div>
-        <ul>
-          <li><b>Target # names</b>: How many stocks to hold. 5–8 balances concentration and diversification; 10–15 for a broader basket.</li>
-          <li><b>Min ADV ($)</b>: Minimum 60‑day average dollar volume (price×volume). Set to 0 to include all; use $10M–$50M to avoid illiquid names.</li>
-          <li><b>Risk‑free (annual %)</b>: Sharpe uses this (return − rf)/vol. Typical values 0–5% based on current yields.</li>
-          <li><b>Min Sharpe</b>: Require a minimum risk‑adjusted return. Start low (0.3–0.8) to keep enough names; raise for more quality.</li>
-          <li><b>Beta range</b>: Keep stocks with beta within this range vs S&P 500. 0–2.0 keeps most; ≤1.2 leans defensive.</li>
-          <li><b>Momentum</b>: Choose lookback L (3–18 months) and whether to exclude the most recent month (common in momentum research). <i>Min momentum</i> is the threshold on L‑month return (e.g., 0.10 = +10%).</li>
-          <li><b>Rank by</b>: Pick Sharpe, Momentum, or Composite (average of normalized Sharpe and Momentum).</li>
-          <li><b>Use monthly returns for Sharpe</b>: Smoother, manager‑style Sharpe vs daily; helpful for longer horizons.</li>
-          <li><b>Weights</b>: Equal‑Weight is robust and simple. Max‑Sharpe (if available) targets higher Sharpe using historical μ and Σ.</li>
-          <li><b>Trading cost (bps)</b>: Cost per dollar traded at monthly rebalance (e.g., 5 bps = 0.05%). Checked box applies costs to the equity curve.</li>
-        </ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        """
-        <div class="opt-card">
-        <div class="opt-header">Recommended Presets</div>
-        <ul>
-          <li><b>Short‑term (3–6 months)</b>:
-            <ul>
-              <li>Start date: last 1–2 years; <i>Use monthly Sharpe</i>: off (daily)</li>
-              <li>Momentum: 6–9m, exclude last month; Min momentum ≥ 0.0–0.10</li>
-              <li>Min Sharpe ≥ 0.5; Beta range 0.8–2.0</li>
-              <li>Weights: Equal or Max‑Sharpe; Costs: 5–10 bps</li>
-            </ul>
-          </li>
-          <li><b>Medium‑term (6–18 months)</b>:
-            <ul>
-              <li>Start date: last 2–3 years; <i>Use monthly Sharpe</i>: on</li>
-              <li>Momentum: 12m, exclude last month; Min momentum ≥ 0.05–0.15</li>
-              <li>Min Sharpe ≥ 0.8; Beta range 0.6–1.6</li>
-              <li>Weights: Equal or Max‑Sharpe; Costs: 5 bps</li>
-            </ul>
-          </li>
-          <li><b>Long‑term (2–3 years+)</b>:
-            <ul>
-              <li>Start date: last 3–5 years; <i>Use monthly Sharpe</i>: on</li>
-              <li>Momentum: 12–18m, exclude last month; Min momentum ≥ 0.10</li>
-              <li>Min Sharpe ≥ 1.0; Beta range 0.5–1.4</li>
-              <li>Weights: Equal or Max‑Sharpe; Consider sector balance via weights</li>
-            </ul>
-          </li>
-        </ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        """
-        <div class="opt-card">
-        <div class="opt-header">Interpreting Outputs</div>
-        <ul>
-          <li><b>Metrics table</b>: Sort by Sharpe or Momentum; use beta/R² to gauge market linkage; VaR and max drawdown for downside risk.</li>
-          <li><b>Equity curve</b>: Shows performance with or without rebalance costs. Compare vs S&P overlay.</li>
-          <li><b>Charts</b>: Drawdown, rolling Sharpe/vol, weights, momentum vs Sharpe scatter, correlation heatmap, sector weights, rolling beta.</li>
-          <li><b>CSV</b>: Download full metrics for audit or further analysis.</li>
-        </ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.button("Back to Optimizer", on_click=_close_guide)
-
-# If the guide is open (via query param), render it and stop the rest of the page
-try:
-    _open = "guide" in st.query_params
-except Exception:
-    _open = "guide" in st.experimental_get_query_params()
-if _open:
-    _render_guide()
-    st.stop()
 
 
 # ---------- Helpers ----------
