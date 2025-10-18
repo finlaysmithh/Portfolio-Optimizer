@@ -6,3 +6,5 @@ plotly>=5
 pyportfolioopt>=1.5
 requests>=2
 scipy>=1.10
+certifi>=2023.7.22
+python-dotenv>=1.0

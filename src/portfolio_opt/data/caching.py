@@ -1,37 +1,51 @@
 from __future__ import annotations
 
-import os
-import sys
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
-
-from ..config import load_settings
-
 try:
     from ..utils import hash_key
-except ImportError:
+except Exception:  # pragma: no cover - fallback for defensive use
     import hashlib
 
-    def hash_key(*parts: Any, prefix: str = "") -> str:  # type: ignore[redefinition]
-        payload = json.dumps(parts if len(parts) != 1 else parts[0], default=str, sort_keys=True)
-        digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
-        return f"{prefix}:" + digest if prefix else digest
+    def hash_key(*parts: Any, prefix: str = "") -> str:
+        payload = json.dumps(
+            parts[0] if len(parts) == 1 else parts,
+            default=str,
+            sort_keys=True,
+        )
+        digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()
+        return f"{prefix}:{digest}" if prefix else digest
+
+
+def _get_settings() -> dict[str, Any]:
+    try:
+        from ..config import load_settings
+
+        return load_settings()
+    except Exception:
+        return {}
 
 
 class DiskCache:
     def __init__(self, namespace: str = "prices") -> None:
-        self.settings = load_settings()
         self.namespace = namespace
-        self.base = self.settings.cache_dir / namespace
+        self.settings = _get_settings()
+
+        cache_dir = self.settings.get("CACHE_DIR")
+        if not isinstance(cache_dir, Path):
+            cache_dir = Path(cache_dir) if cache_dir else Path.cwd() / "data"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        self.base = cache_dir / namespace
         self.base.mkdir(parents=True, exist_ok=True)
+
+        cache_ttl = self.settings.get("CACHE_TTL")
+        self.cache_ttl = cache_ttl if isinstance(cache_ttl, timedelta) else timedelta(days=5)
 
     def _path(self, key: str) -> Path:
         return self.base / f"{key}.csv"
@@ -47,7 +61,7 @@ class DiskCache:
         try:
             meta = json.loads(m.read_text())
             ts = datetime.fromisoformat(meta.get("timestamp"))
-            if datetime.utcnow() - ts > self.settings.cache_ttl:
+            if datetime.utcnow() - ts > self.cache_ttl:
                 return None
             df = pd.read_csv(p, index_col=0)
             if bool(meta.get("datetime_index", False)):
