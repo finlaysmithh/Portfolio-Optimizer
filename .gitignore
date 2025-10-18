@@ -16,3 +16,15 @@ data/*.csv
 # app caches
 data/prices/*.csv
 data/prices/*.json
+data/prices/
+artifacts/
+__pycache__/
+*.pyc
+.venv/
+.streamlit/secrets.toml
+data/prices/
+artifacts/
+__pycache__/
+*.pyc
+.venv/
+.streamlit/secrets.toml
