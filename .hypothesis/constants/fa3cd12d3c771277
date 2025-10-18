@@ -1,0 +1,4 @@
+# file: /Users/finlaysmith/Desktop/PORTFOLIO OPTIMIZER/src/portfolio_opt/config.py
+# hypothesis_version: 6.142.1
+
+['.env', '10000000', '5', 'ALPHAVANTAGE_API_KEY', 'CACHE_TTL_DAYS', 'EMAIL_APP_PASSWORD', 'EMAIL_USER', 'FMP_API_KEY', 'INFO', 'LOG_LEVEL', 'data', 'env/.env']

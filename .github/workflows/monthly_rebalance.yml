@@ -1,0 +1,40 @@
+name: Monthly Rebalance
+
+on:
+  schedule:
+    - cron: '0 9 1 * *'  # Monthly on 1st at 09:00 UTC
+  workflow_dispatch:
+
+jobs:
+  rebalance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+      - name: Rebalance
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+        run: |
+          po optimize --target-names 6 --min-value 0.3 --min-momo 0.2 --out weights.csv
+          po tearsheet --out docs/images/tearsheet.pdf
+      - name: Upload Tear Sheet
+        uses: actions/upload-artifact@v4
+        with:
+          name: tear-sheet
+          path: docs/images/tearsheet.pdf
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: monthly-${{ github.run_id }}
+          name: Monthly Rebalance ${{ github.run_id }}
+          draft: false
+          prerelease: false
+          files: |
+            docs/images/tearsheet.pdf

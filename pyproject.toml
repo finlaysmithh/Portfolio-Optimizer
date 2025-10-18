@@ -1,0 +1,75 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "portfolio-optimizer-pro"
+version = "0.1.0"
+description = "5–8 stock portfolio optimizer with factors, regimes, and backtesting"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "portfolio-optimizer-pro contributors" }]
+keywords = ["portfolio", "optimizer", "quant", "factors", "backtest", "finance"]
+dependencies = [
+  "pandas>=2.0",
+  "numpy>=1.24",
+  "scipy>=1.10",
+  "yfinance>=0.2",
+  "pandas-datareader>=0.10",
+  "statsmodels>=0.13",
+  "scikit-learn>=1.2",
+  "PyPortfolioOpt>=1.5",
+  "matplotlib>=3.7",
+  "plotly>=5.15",
+  "streamlit>=1.38",
+  "xlwings>=0.30",
+  "schedule>=1.1",
+  "yagmail>=0.15",
+  "pydantic>=2.0",
+  "python-dotenv>=1.0",
+  "requests>=2.31",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/portfolio_opt"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/portfolio_opt", "README.md", "LICENSE", "docs/**", "streamlit_app/**", "site/**", "tests/**", "Makefile", "Dockerfile", "docker-compose.yml"]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4",
+  "pytest-cov>=4.1",
+  "hypothesis>=6.80",
+  "mypy>=1.6",
+  "ruff>=0.4.2",
+  "black>=23.9",
+  "bandit>=1.7",
+]
+
+[project.scripts]
+po = "portfolio_opt.cli.main:main"
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "UP", "B"]
+ignore = ["E501"]
+src = ["src"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+ignore_missing_imports = true
+strict_optional = false
+disallow_untyped_defs = false
+no_site_packages = false
+exclude = ["site/", "streamlit_app/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q --cov=portfolio_opt --cov-report=term-missing"

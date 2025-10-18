@@ -1,0 +1,4 @@
+# file: /Users/finlaysmith/Desktop/PORTFOLIO OPTIMIZER/src/portfolio_opt/data/caching.py
+# hypothesis_version: 6.142.1
+
+['prices', 'timestamp']

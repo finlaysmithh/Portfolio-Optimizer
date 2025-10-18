@@ -1,0 +1,4 @@
+# file: /Users/finlaysmith/Desktop/PORTFOLIO OPTIMIZER/src/portfolio_opt/reporting/tearsheet.py
+# hypothesis_version: 6.142.1
+
+[1e-09, 0.3, 0.5, 1.0, 1.2, 1.5, 252, '#1f77b4', 'Drawdown', 'Factor Exposures', 'Rolling Sharpe (60d)', 'crimson', 'darkgreen', 'equity_curve', 'navy', 'returns', 'y']

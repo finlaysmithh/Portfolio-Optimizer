@@ -1,0 +1,4 @@
+# file: /Users/finlaysmith/Desktop/PORTFOLIO OPTIMIZER/src/portfolio_opt/factors/compute.py
+# hypothesis_version: 6.142.1
+
+[0.0, 0.1, 0.2, 0.4, 0.8, 1.0, 'AAPL', 'AMZN', 'BAC', 'CSCO', 'CVX', 'Consumer Staples', 'DIS', 'Energy', 'Financials', 'GOOGL', 'HD', 'Health Care', 'IBM', 'INTC', 'JNJ', 'JPM', 'KO', 'MA', 'MCD', 'META', 'MSFT', 'NFLX', 'NKE', 'NVDA', 'ORCL', 'PEP', 'PFE', 'PG', 'T', 'TSLA', 'Technology', 'Unknown', 'V', 'VZ', 'WFC', 'XOM', 'composite', 'first', 'low_vol', 'momentum', 'quality', 'rank', 'size', 'ticker', 'value']

@@ -1,0 +1,4 @@
+# file: /Users/finlaysmith/Desktop/PORTFOLIO OPTIMIZER/src/portfolio_opt/data/fetchers.py
+# hypothesis_version: 6.142.1
+
+[0.0004, 0.01, 100, ',', 'B', 'Close', 'all', 'alpha_vantage', 'empty', 'fmp', 'ok', 'prices', 'stub', 'ticker', 'yfinance']

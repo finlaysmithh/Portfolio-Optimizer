@@ -1,0 +1,4 @@
+# file: /Users/finlaysmith/Desktop/PORTFOLIO OPTIMIZER/src/portfolio_opt/utils.py
+# hypothesis_version: 6.142.1
+
+['%Y-%m-%d', 'M', 'all', 'r', 'utf-8', 'w']
