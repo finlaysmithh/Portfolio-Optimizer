@@ -5,11 +5,28 @@ from typing import Iterable, Optional
 import io
 import logging
 
+import certifi
 import pandas as pd
 import requests
-import certifi
 
 logger = logging.getLogger(__name__)
+
+# Persistent CSV storing the latest S&P 500 universe.
+_UNIVERSE_CSV = Path(__file__).resolve().parents[3] / "data" / "universe" / "sp500.csv"
+
+# Lightweight fallback when both local disk and Wikipedia fail (10 tickers).
+_DEMO_SP500 = [
+    "AAPL",
+    "MSFT",
+    "GOOGL",
+    "AMZN",
+    "META",
+    "NVDA",
+    "TSLA",
+    "JPM",
+    "JNJ",
+    "V",
+]
 
 # Common class-share / odd Yahoo mappings
 YAHOO_FIXES = {
@@ -19,6 +36,7 @@ YAHOO_FIXES = {
     "BF.B": "BF-B",
     "BF-B": "BF-B",
 }
+
 
 def _to_yahoo(t: str) -> Optional[str]:
     """
@@ -36,6 +54,7 @@ def _to_yahoo(t: str) -> Optional[str]:
     t = t.replace(".", "-")
     return YAHOO_FIXES.get(t, t)
 
+
 def _sanitize_universe(tickers: Iterable[str]) -> list[str]:
     """
     Apply Yahoo normalization and de-duplicate while preserving order.
@@ -50,6 +69,7 @@ def _sanitize_universe(tickers: Iterable[str]) -> list[str]:
             seen.add(norm)
             out.append(norm)
     return out
+
 
 def load_tickers_from_file(path: str | Path) -> list[str]:
     """
@@ -70,6 +90,7 @@ def load_tickers_from_file(path: str | Path) -> list[str]:
 
     return _sanitize_universe(raw)
 
+
 def _fetch_sp500_from_wikipedia() -> list[str]:
     """
     Fetch S&P 500 tickers from Wikipedia using requests+certifi (robust TLS),
@@ -88,8 +109,8 @@ def _fetch_sp500_from_wikipedia() -> list[str]:
             tables = pd.read_html(io.StringIO(resp.text), attrs={"id": "constituents"})
         except Exception:
             tables = pd.read_html(io.StringIO(resp.text))
-    except Exception as e:
-        raise RuntimeError(f"Failed to parse S&P 500 table: {e}") from e
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"Failed to parse S&P 500 table: {exc}") from exc
 
     if not tables:
         raise RuntimeError("No HTML tables found on Wikipedia page.")
@@ -106,52 +127,79 @@ def _fetch_sp500_from_wikipedia() -> list[str]:
     syms = [str(s).strip().upper().replace(".", "-") for s in df[sym_col].tolist()]
     return _sanitize_universe(syms)
 
-def _cache_path() -> Path:
-    # Repo root / data / sp500_cache.csv
-    return Path(__file__).resolve().parents[3] / "data" / "sp500_cache.csv"
 
-def _read_cache() -> list[str]:
-    p = _cache_path()
-    if not p.exists():
-        return []
-    try:
-        df = pd.read_csv(p)
-        col = "Symbol" if "Symbol" in df.columns else df.columns[0]
-        return _sanitize_universe(df[col].astype(str).tolist())
-    except Exception as e:
-        logger.warning("Failed to read local S&P 500 cache %s: %s", p, e)
-        return []
+def _read_local_sp500() -> list[str]:
+    """
+    Attempt to read the S&P 500 universe from the persisted CSV.
+    """
+    if not _UNIVERSE_CSV.exists():
+        raise FileNotFoundError(_UNIVERSE_CSV)
 
-def _write_cache(symbols: list[str]) -> None:
     try:
-        p = _cache_path()
-        p.parent.mkdir(parents=True, exist_ok=True)
-        pd.DataFrame({"Symbol": symbols}).to_csv(p, index=False)
-    except Exception as e:
-        logger.debug("Skipping cache write (%s)", e)
+        df = pd.read_csv(_UNIVERSE_CSV)
+        if df.empty:
+            return []
+        if "Symbol" in df.columns:
+            raw = df["Symbol"].astype(str).tolist()
+        else:
+            raw = df.iloc[:, 0].astype(str).tolist()
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"Failed to read {_UNIVERSE_CSV}: {exc}") from exc
+
+    return _sanitize_universe(raw)
+
+
+def _write_local_sp500(symbols: list[str]) -> None:
+    """
+    Persist the fetched S&P 500 universe to disk for offline reuse.
+    """
+    try:
+        _UNIVERSE_CSV.parent.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame({"Symbol": symbols}).to_csv(_UNIVERSE_CSV, index=False)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Unable to write S&P 500 CSV cache %s: %s", _UNIVERSE_CSV, exc)
+
 
 def sp500_tickers() -> list[str]:
     """
     Return the current S&P 500 constituents as Yahoo-compatible tickers.
 
     Order of attempts:
-    1) Wikipedia via requests+certifi (fresh)
-    2) Local cache file at data/sp500_cache.csv (if present)
-    3) Empty list (caller can supply a custom universe)
+    1) Local CSV at data/universe/sp500.csv
+    2) Wikipedia fetch (cached to the CSV above)
+    3) Demo fallback (10 large-cap names) with a warning
     """
-    # 1) Try live fetch
+    # 1) Local CSV first to avoid network dependency on Streamlit Cloud
     try:
-        syms = _fetch_sp500_from_wikipedia()
-        if syms:
-            _write_cache(syms)  # refresh local cache for next time
-            return syms
-    except Exception as e:
-        logger.warning("Failed to fetch S&P 500 from Wikipedia: %s", e)
+        local_syms = _read_local_sp500()
+        if local_syms:
+            logger.info("Loaded %d S&P 500 tickers from local CSV %s", len(local_syms), _UNIVERSE_CSV)
+            return local_syms
+        logger.warning("Local S&P 500 CSV %s is empty. Attempting Wikipedia fetch.", _UNIVERSE_CSV)
+    except FileNotFoundError:
+        logger.info("Local S&P 500 CSV %s not found. Attempting Wikipedia fetch.", _UNIVERSE_CSV)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to read S&P 500 CSV %s: %s. Attempting Wikipedia fetch.", _UNIVERSE_CSV, exc)
 
-    # 2) Fallback to cache
-    cached = _read_cache()
-    if cached:
-        return cached
+    # 2) Fetch from Wikipedia and persist for next time
+    try:
+        wiki_syms = _fetch_sp500_from_wikipedia()
+        if wiki_syms:
+            logger.info(
+                "Fetched %d S&P 500 tickers from Wikipedia and cached to %s",
+                len(wiki_syms),
+                _UNIVERSE_CSV,
+            )
+            _write_local_sp500(wiki_syms)
+            return wiki_syms
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to fetch S&P 500 from Wikipedia: %s", exc)
 
-    # 3) Give up gracefully
-    return []
+    # 3) Demo fallback
+    logger.warning(
+        "Falling back to demo S&P 500 subset (%d tickers). "
+        "Check connectivity or ensure %s exists.",
+        len(_DEMO_SP500),
+        _UNIVERSE_CSV,
+    )
+    return _DEMO_SP500.copy()

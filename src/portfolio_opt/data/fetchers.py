@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -15,6 +16,8 @@ if ROOT not in sys.path:
 
 from .caching import DiskCache
 from ..utils import ensure_datetime_index
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -61,36 +64,70 @@ def _try_yfinance(tickers: Sequence[str], start: str | datetime, end: str | date
                 return ensure_datetime_index(out)
             return pd.DataFrame()
 
-        # Attempt bulk download first
-        data = yf.download(
-            tickers=list(tickers), start=start, end=end, group_by="ticker", progress=False
-        )
-        close = _extract_close(data, tickers)
-        if close is None or close.empty:
-            # Fallback: chunked downloads to avoid provider multi-ticker limits
-            all_close: pd.DataFrame | None = None
-            CHUNK = 50
-            syms = list(tickers)
-            for i in range(0, len(syms), CHUNK):
-                chunk = syms[i : i + CHUNK]
-                try:
-                    d = yf.download(tickers=chunk, start=start, end=end, group_by="ticker", progress=False)
-                    c = _extract_close(d, chunk)
-                    if c is not None and not c.empty:
-                        all_close = c if all_close is None else all_close.join(c, how="outer")
-                except Exception:
-                    continue
-            close = ensure_datetime_index(all_close) if all_close is not None else pd.DataFrame()
+        syms = list(dict.fromkeys(tickers))  # preserve order, drop duplicates
+        combined: pd.DataFrame | None = None
+        failed: set[str] = set()
+        chunk_size = 50
 
-        if close is None or close.empty:
+        for i in range(0, len(syms), chunk_size):
+            chunk = syms[i : i + chunk_size]
+            try:
+                data = yf.download(
+                    tickers=chunk,
+                    start=start,
+                    end=end,
+                    group_by="ticker",
+                    progress=False,
+                    threads=False,
+                )
+            except Exception as exc:  # noqa: BLE001
+                failed.update(chunk)
+                logger.warning("yfinance chunk download failed for %s: %s", ", ".join(chunk), exc)
+                continue
+
+            close = _extract_close(data, chunk)
+            if close is None or close.empty:
+                failed.update(chunk)
+                continue
+
+            missing_cols = [sym for sym in chunk if sym not in close.columns]
+            if missing_cols:
+                failed.update(missing_cols)
+            close = close.reindex(columns=chunk)
+            close = close.sort_index()
+            combined = close if combined is None else combined.join(close, how="outer")
+
+        if combined is None or combined.empty:
             return PriceProviderResult("yfinance", _synthetic_prices(tickers, start, end), False, "empty")
-        # Ensure we keep requested columns, add missing as NaN (handled upstream)
+
+        combined = ensure_datetime_index(combined)
+        combined = combined.sort_index()
+        combined = combined.loc[:, ~combined.columns.duplicated()]
+
+        available_cols = [col for col in combined.columns if combined[col].notna().any()]
+        healthy = bool(available_cols)
+        if not healthy:
+            return PriceProviderResult("yfinance", _synthetic_prices(tickers, start, end), False, "empty")
+
         for t in tickers:
-            if t not in close.columns:
-                close[t] = np.nan
-        close = close[list(tickers)]
-        return PriceProviderResult("yfinance", close, True, "ok")
+            if t not in combined.columns:
+                combined[t] = np.nan
+        combined = combined[list(tickers)]
+
+        if failed:
+            preview = ", ".join(sorted(failed)[:5])
+            logger.warning(
+                "yfinance skipped %d tickers during download (first few: %s)",
+                len(failed),
+                preview,
+            )
+            message = f"partial:{len(failed)}"
+        else:
+            message = "ok"
+
+        return PriceProviderResult("yfinance", combined, healthy, message)
     except Exception as e:  # noqa: BLE001
+        logger.warning("yfinance download failed entirely: %s", e)
         return PriceProviderResult("yfinance", _synthetic_prices(tickers, start, end), False, str(e))
 
 
